@@ -1,0 +1,663 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Trash2, User } from 'lucide-react';
+
+const TownBuilder = () => {
+  const [selectedSprite, setSelectedSprite] = useState(0);
+  const [placedSprites, setPlacedSprites] = useState({
+    1: [], // Act 1
+    2: [], // Act 2
+    3: []  // Act 3
+  });
+  const [playerPos, setPlayerPos] = useState({
+    1: { x: 0, y: 0 },
+    2: { x: 0, y: 0 },
+    3: { x: 0, y: 0 }
+  });
+  const [mode, setMode] = useState('build'); // 'build' or 'play'
+  const [dialogue, setDialogue] = useState(null);
+  const [placingPlayer, setPlacingPlayer] = useState(false);
+  const [editingDialogue, setEditingDialogue] = useState(null);
+  const [currentAct, setCurrentAct] = useState(1); // 1, 2, or 3
+  const fileInputRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const GRID_SIZE = 50;
+
+  // Sprite data with multiple dialogue options
+  const sprites = [
+    { 
+      color: '#C0C0C0', 
+      name: 'Knight', 
+      dialogues: [
+        "Honor and valor guide my blade!",
+        "The kingdom's safety is my sworn duty.",
+        "I have fought in many battles for our realm.",
+        "A true knight never abandons their post.",
+        "May your journey be blessed with courage."
+      ]
+    },
+    { 
+      color: '#8B7355', 
+      name: 'Squire', 
+      dialogues: [
+        "One day I'll be a knight like my master!",
+        "I'm still learning, but I'll do my best!",
+        "Polishing armor is harder than it looks...",
+        "The knight's code is something I aspire to follow.",
+        "Can you teach me some sword techniques?"
+      ]
+    },
+    { 
+      color: '#FF6B6B', 
+      name: 'Villager', 
+      dialogues: [
+        "Hello traveler! Welcome to our humble village.",
+        "Beautiful day, isn't it? Perfect for a stroll.",
+        "Have you seen the sunrise today? Simply magnificent!",
+        "The harvest this year has been wonderful!",
+        "Welcome, friend! Make yourself at home."
+      ]
+    },
+    { 
+      color: '#4ECDC4', 
+      name: 'Merchant', 
+      dialogues: [
+        "Looking to buy some wares? I've got the finest goods!",
+        "Special prices today only! Come take a look!",
+        "I've traveled far and wide to bring you these treasures.",
+        "Business is booming! What can I get for you?",
+        "Rare items from distant lands, right here!"
+      ]
+    },
+    { 
+      color: '#45B7D1', 
+      name: 'Guard', 
+      dialogues: [
+        "Halt! State your business... oh, you're friendly. Carry on.",
+        "Stay vigilant. There are dangers on the roads.",
+        "Everything is secure here. You may pass.",
+        "I protect this town with my life!",
+        "Keep your wits about you, traveler."
+      ]
+    },
+    { 
+      color: '#FFD700', 
+      name: 'Queen', 
+      dialogues: [
+        "Welcome to my court. What brings you here?",
+        "The kingdom prospers under wise leadership.",
+        "I rule with both strength and compassion.",
+        "My people's welfare is my highest priority.",
+        "Speak freely, you are among friends here."
+      ]
+    },
+    { 
+      color: '#8B0000', 
+      name: 'Evil Guard', 
+      dialogues: [
+        "Move along... or face the consequences.",
+        "The old ways are gone. New order prevails now.",
+        "Don't test my patience, stranger.",
+        "You ask too many questions...",
+        "Keep walking if you know what's good for you."
+      ]
+    },
+    { 
+      color: '#9370DB', 
+      name: 'Advisor', 
+      dialogues: [
+        "I counsel the throne on matters of state.",
+        "Wisdom comes from careful observation.",
+        "The political landscape shifts like sand...",
+        "Knowledge is the greatest power of all.",
+        "I've seen many rulers come and go."
+      ]
+    },
+    { 
+      color: '#2F4F4F', 
+      name: 'Assassin', 
+      dialogues: [
+        "You saw nothing. Understood?",
+        "Some secrets are worth dying for...",
+        "Everyone has a price. What's yours?",
+        "The shadows are my domain.",
+        "Trust no one in this place."
+      ]
+    }
+  ];
+
+  const handleCanvasClick = (e) => {
+    if (mode !== 'build') return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Snap to grid
+    const gridX = Math.floor(x / GRID_SIZE) * GRID_SIZE;
+    const gridY = Math.floor(y / GRID_SIZE) * GRID_SIZE;
+    
+    // If placing player starting position
+    if (placingPlayer) {
+      setPlayerPos({ ...playerPos, [currentAct]: { x: gridX, y: gridY } });
+      setPlacingPlayer(false);
+      return;
+    }
+    
+    // Check if there's already a sprite at this position
+    const currentSprites = placedSprites[currentAct];
+    const existingIndex = currentSprites.findIndex(s => s.x === gridX && s.y === gridY);
+    
+    if (existingIndex !== -1) {
+      // Replace existing sprite
+      const updated = [...currentSprites];
+      updated[existingIndex] = {
+        x: gridX,
+        y: gridY,
+        spriteIndex: selectedSprite,
+        id: Date.now()
+      };
+      setPlacedSprites({ ...placedSprites, [currentAct]: updated });
+    } else {
+      // Add new sprite
+      setPlacedSprites({ 
+        ...placedSprites, 
+        [currentAct]: [...currentSprites, {
+          x: gridX,
+          y: gridY,
+          spriteIndex: selectedSprite,
+          id: Date.now()
+        }]
+      });
+    }
+  };
+
+  const clearAll = () => {
+    setPlacedSprites({ ...placedSprites, [currentAct]: [] });
+  };
+
+  const removeSprite = (id) => {
+    setPlacedSprites({ 
+      ...placedSprites, 
+      [currentAct]: placedSprites[currentAct].filter(s => s.id !== id) 
+    });
+  };
+
+  const updateDialogue = (id, newDialogue) => {
+    setPlacedSprites({
+      ...placedSprites,
+      [currentAct]: placedSprites[currentAct].map(s => 
+        s.id === id ? { ...s, customDialogue: newDialogue } : s
+      )
+    });
+    setEditingDialogue(null);
+  };
+
+  const randomizeDialogue = (sprite) => {
+    const dialogues = sprites[sprite.spriteIndex].dialogues;
+    const currentDialogue = sprite.customDialogue || dialogues[0];
+    const availableDialogues = dialogues.filter(d => d !== currentDialogue);
+    const randomDialogue = availableDialogues[Math.floor(Math.random() * availableDialogues.length)];
+    
+    setPlacedSprites({
+      ...placedSprites,
+      [currentAct]: placedSprites[currentAct].map(s => 
+        s.id === sprite.id ? { ...s, customDialogue: randomDialogue } : s
+      )
+    });
+  };
+
+  const exportCSV = () => {
+    const currentSprites = placedSprites[currentAct];
+    const headers = ['Type', 'X', 'Y', 'Dialogue'];
+    const rows = currentSprites.map(sprite => [
+      sprites[sprite.spriteIndex].name,
+      sprite.x / GRID_SIZE,
+      sprite.y / GRID_SIZE,
+      (sprite.customDialogue || sprites[sprite.spriteIndex].dialogues[0]).replace(/"/g, '""')
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map((cell, idx) => idx === 3 ? `"${cell}"` : cell).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `town-act${currentAct}-dialogue.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      // Skip header row
+      const dataLines = lines.slice(1);
+      
+      const imported = dataLines.map((line, index) => {
+        // Parse CSV line (handle quoted fields)
+        const matches = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+        if (!matches || matches.length < 4) return null;
+        
+        const [type, x, y, dialogue] = matches.map(m => m.replace(/^"|"$/g, '').replace(/""/g, '"'));
+        
+        // Find sprite index by name
+        const spriteIndex = sprites.findIndex(s => s.name === type);
+        if (spriteIndex === -1) return null;
+        
+        return {
+          x: parseInt(x) * GRID_SIZE,
+          y: parseInt(y) * GRID_SIZE,
+          spriteIndex,
+          customDialogue: dialogue !== sprites[spriteIndex].dialogues[0] ? dialogue : undefined,
+          id: Date.now() + index
+        };
+      }).filter(Boolean);
+
+      setPlacedSprites({ ...placedSprites, [currentAct]: imported });
+      e.target.value = ''; // Reset input
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Handle keyboard movement in play mode
+  useEffect(() => {
+    if (mode !== 'play') return;
+
+    const handleKeyDown = (e) => {
+      const key = e.key.toLowerCase();
+      const currentPlayerPos = playerPos[currentAct];
+      let newX = currentPlayerPos.x;
+      let newY = currentPlayerPos.y;
+
+      if (key === 'arrowup' || key === 'w') {
+        newY = Math.max(0, currentPlayerPos.y - GRID_SIZE);
+        e.preventDefault();
+      } else if (key === 'arrowdown' || key === 's') {
+        newY = currentPlayerPos.y + GRID_SIZE;
+        e.preventDefault();
+      } else if (key === 'arrowleft' || key === 'a') {
+        newX = Math.max(0, currentPlayerPos.x - GRID_SIZE);
+        e.preventDefault();
+      } else if (key === 'arrowright' || key === 'd') {
+        newX = currentPlayerPos.x + GRID_SIZE;
+        e.preventDefault();
+      }
+
+      if (newX !== currentPlayerPos.x || newY !== currentPlayerPos.y) {
+        setPlayerPos({ ...playerPos, [currentAct]: { x: newX, y: newY } });
+        
+        // Check if player is adjacent to any sprite
+        const adjacent = placedSprites[currentAct].find(sprite => {
+          const dx = Math.abs(sprite.x - newX);
+          const dy = Math.abs(sprite.y - newY);
+          return (dx === GRID_SIZE && dy === 0) || (dx === 0 && dy === GRID_SIZE);
+        });
+
+        if (adjacent) {
+          setDialogue({
+            name: sprites[adjacent.spriteIndex].name,
+            text: adjacent.customDialogue || sprites[adjacent.spriteIndex].dialogues[0]
+          });
+        } else {
+          setDialogue(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, playerPos, placedSprites, currentAct]);
+
+  return (
+    <div className="w-full h-screen bg-gradient-to-br from-green-100 to-blue-100 p-4">
+      <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-2xl overflow-hidden h-full flex flex-col">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">🏘️ Town Builder</h1>
+              <p className="text-amber-100">
+                {mode === 'build' ? 'Click to place townsfolk' : 'Use arrow keys or WASD to move'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex gap-1 bg-amber-800 rounded-lg p-1">
+                {[1, 2, 3].map(act => (
+                  <button
+                    key={act}
+                    onClick={() => setCurrentAct(act)}
+                    className={`px-4 py-2 rounded font-bold transition-colors ${
+                      currentAct === act
+                        ? 'bg-white text-amber-700'
+                        : 'text-amber-200 hover:text-white'
+                    }`}
+                  >
+                    Act {act}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setMode(mode === 'build' ? 'play' : 'build')}
+                className="bg-white text-amber-700 px-6 py-3 rounded-lg font-bold hover:bg-amber-50 transition-colors"
+              >
+                {mode === 'build' ? '▶️ Play' : '🔨 Build'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          {/* Sprite Palette - only show in build mode */}
+          {mode === 'build' && (
+            <div className="w-64 bg-gray-50 p-4 border-r overflow-y-auto flex-shrink-0">
+              <h2 className="font-bold text-lg mb-3 text-gray-700">Townsfolk</h2>
+              <div className="space-y-2">
+                {sprites.map((sprite, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedSprite(idx)}
+                    className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all ${
+                      selectedSprite === idx
+                        ? 'bg-blue-500 text-white shadow-lg scale-105'
+                        : 'bg-white hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <div
+                      className="w-10 h-10 rounded border-2 border-gray-300"
+                      style={{ backgroundColor: sprite.color }}
+                    />
+                    <span className="font-medium text-sm">{sprite.name}</span>
+                  </button>
+                ))}
+              </div>
+              
+              <div className="mt-6 pt-4 border-t">
+                <button
+                  onClick={() => setPlacingPlayer(!placingPlayer)}
+                  className={`w-full mb-3 p-3 rounded-lg flex items-center justify-center gap-2 transition-colors ${
+                    placingPlayer
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
+                >
+                  <User size={20} />
+                  {placingPlayer ? 'Click to Place Player' : 'Set Player Start'}
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Trash2 size={20} />
+                  Clear Town
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Canvas Area */}
+          <div className="flex-1 p-4 overflow-hidden flex flex-col min-w-0 flex-shrink-0">
+            {mode === 'build' && (
+              <div className="mb-2 text-sm text-gray-600">
+                {placingPlayer ? (
+                  <span className="text-yellow-600 font-bold">👆 Click on the grid to set player starting position for Act {currentAct}</span>
+                ) : (
+                  <>
+                    <span className="font-bold text-purple-600">Act {currentAct}</span>
+                    {' | '}
+                    Selected: <span className="font-bold text-gray-800">{sprites[selectedSprite].name}</span>
+                    {' | '}
+                    Population: <span className="font-bold text-gray-800">{placedSprites[currentAct].length}</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {mode === 'play' && (
+              <div className="mb-2 text-sm text-gray-600">
+                <span className="font-bold text-purple-600">Act {currentAct}</span>
+                {' | '}
+                Position: <span className="font-bold text-gray-800">({playerPos[currentAct].x / GRID_SIZE}, {playerPos[currentAct].y / GRID_SIZE})</span>
+                {' | '}
+                <span className="text-blue-600">Walk next to townsfolk to talk to them!</span>
+              </div>
+            )}
+            
+            <div
+              ref={canvasRef}
+              onClick={handleCanvasClick}
+              className={`flex-1 bg-gradient-to-br from-green-200 to-green-300 rounded-lg relative overflow-hidden shadow-inner ${
+                mode === 'build' ? (placingPlayer ? 'cursor-pointer' : 'cursor-crosshair') : ''
+              }`}
+              style={{
+                backgroundImage: `
+                  repeating-linear-gradient(0deg, transparent, transparent ${GRID_SIZE - 1}px, rgba(0,0,0,0.1) ${GRID_SIZE - 1}px, rgba(0,0,0,0.1) ${GRID_SIZE}px),
+                  repeating-linear-gradient(90deg, transparent, transparent ${GRID_SIZE - 1}px, rgba(0,0,0,0.1) ${GRID_SIZE - 1}px, rgba(0,0,0,0.1) ${GRID_SIZE}px)
+                `,
+                backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+                backgroundPosition: '0 0'
+              }}
+            >
+              {/* Placed sprites */}
+              {placedSprites[currentAct].map((sprite) => (
+                <div
+                  key={sprite.id}
+                  className="absolute group"
+                  style={{
+                    left: sprite.x,
+                    top: sprite.y,
+                    width: GRID_SIZE,
+                    height: GRID_SIZE
+                  }}
+                >
+                  <div
+                    className="w-full h-full rounded-lg shadow-lg border-2 border-white transition-transform hover:scale-110"
+                    style={{ backgroundColor: sprites[sprite.spriteIndex].color }}
+                  />
+                  {mode === 'build' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSprite(sprite.id);
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {/* Player character - show in both modes */}
+              {(mode === 'play' || (mode === 'build' && !placingPlayer)) && (
+                <div
+                  className="absolute transition-all duration-200"
+                  style={{
+                    left: playerPos[currentAct].x,
+                    top: playerPos[currentAct].y,
+                    width: GRID_SIZE,
+                    height: GRID_SIZE
+                  }}
+                >
+                  <div className={`w-full h-full bg-yellow-400 rounded-lg shadow-lg border-4 border-yellow-600 flex items-center justify-center ${
+                    mode === 'build' ? 'opacity-50' : ''
+                  }`}>
+                    <User size={30} className="text-yellow-800" />
+                  </div>
+                </div>
+              )}
+
+              {/* Dialogue box */}
+              {dialogue && mode === 'play' && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-2xl p-4 max-w-md border-4 border-gray-800">
+                  <div className="font-bold text-lg mb-2 text-gray-800">{dialogue.name}</div>
+                  <div className="text-gray-700">{dialogue.text}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Spreadsheet - only show in build mode */}
+          {mode === 'build' && (
+            <div className="w-80 bg-gray-50 p-4 border-l overflow-y-auto">
+              <h2 className="font-bold text-lg mb-3 text-gray-700">Act {currentAct} Townsfolk</h2>
+              
+              {placedSprites[currentAct].length === 0 ? (
+                <p className="text-gray-500 text-sm italic">No townsfolk placed yet</p>
+              ) : (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-200">
+                        <tr>
+                          <th className="p-2 text-left">Type</th>
+                          <th className="p-2 text-left">X</th>
+                          <th className="p-2 text-left">Y</th>
+                          <th className="p-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {placedSprites[currentAct].map((sprite, idx) => (
+                          <React.Fragment key={sprite.id}>
+                            <tr className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                              <td className="p-2 flex items-center gap-2">
+                                <div
+                                  className="w-6 h-6 rounded border flex-shrink-0"
+                                  style={{ backgroundColor: sprites[sprite.spriteIndex].color }}
+                                />
+                                <span className="text-xs">{sprites[sprite.spriteIndex].name}</span>
+                              </td>
+                              <td className="p-2 text-gray-600">{sprite.x / GRID_SIZE}</td>
+                              <td className="p-2 text-gray-600">{sprite.y / GRID_SIZE}</td>
+                              <td className="p-2">
+                                <button
+                                  onClick={() => removeSprite(sprite.id)}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                            <tr className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                              <td colSpan="4" className="px-2 pb-2 pt-0">
+                                {editingDialogue === sprite.id ? (
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      defaultValue={sprite.customDialogue || sprites[sprite.spriteIndex].dialogues[0]}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          updateDialogue(sprite.id, e.target.value);
+                                        } else if (e.key === 'Escape') {
+                                          setEditingDialogue(null);
+                                        }
+                                      }}
+                                      className="flex-1 text-xs p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      autoFocus
+                                      onBlur={(e) => updateDialogue(sprite.id, e.target.value)}
+                                    />
+                                    <button
+                                      onClick={() => setEditingDialogue(null)}
+                                      className="px-2 bg-gray-300 hover:bg-gray-400 rounded text-xs"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2 items-center">
+                                    <div 
+                                      className="flex-1 text-xs text-gray-600 italic bg-gray-100 p-2 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                                      onClick={() => setEditingDialogue(sprite.id)}
+                                    >
+                                      💬 "{sprite.customDialogue || sprites[sprite.spriteIndex].dialogues[0]}"
+                                    </div>
+                                    <button
+                                      onClick={() => randomizeDialogue(sprite)}
+                                      className="px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded text-xs font-bold"
+                                      title="Randomize dialogue"
+                                    >
+                                      🎲
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm mb-2 text-gray-700">Export / Import</h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={exportCSV}
+                    disabled={placedSprites[currentAct].length === 0}
+                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded text-sm transition-colors"
+                  >
+                    📊 Export Act {currentAct} CSV
+                  </button>
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={importCSV}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full bg-purple-500 hover:bg-purple-600 text-white p-2 rounded text-sm transition-colors"
+                    >
+                      📂 Import to Act {currentAct}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm mb-2 text-gray-700">Summary</h3>
+                <div className="space-y-1 text-sm">
+                  {sprites.map((sprite, idx) => {
+                    const count = placedSprites[currentAct].filter(s => s.spriteIndex === idx).length;
+                    if (count === 0) return null;
+                    return (
+                      <div key={idx} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-4 h-4 rounded border"
+                            style={{ backgroundColor: sprite.color }}
+                          />
+                          <span className="text-gray-700">{sprite.name}</span>
+                        </div>
+                        <span className="font-semibold text-gray-800">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TownBuilder;
