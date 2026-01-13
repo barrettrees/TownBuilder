@@ -2,13 +2,13 @@
   "name": "my-town-builder",
   "private": true,
   "version": "0.0.0",
-  "homepage":"https://barrettrees.github.io/TownBuilder"
   "type": "module",
+  "homepage": "https://barrettrees.github.io/TownBuilder",
   "scripts": {
     "predeploy": "npm run build",
-+   "deploy": "gh-pages -d build"
-    "dev": "vite",
+    "deploy": "gh-pages -d dist -u \"github-actions-bot <github-actions@github.com>\" --repo https://x-access-token:${GITHUB_TOKEN}@github.com/barrettrees/TownBuilder.git",
     "build": "vite build",
+    "dev": "vite",
     "lint": "eslint .",
     "preview": "vite preview"
   },
